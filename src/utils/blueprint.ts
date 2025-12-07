@@ -208,7 +208,7 @@ export function calculateSmartPoles(
 ): ActivePole[] {
     const data = POLE_DATA[type];
     const coverage = data.supply[qualityIdx]; // Width/Height of supply area
-    const offset = Math.floor((coverage - 1) / 2); // Center offset
+    // const offset = Math.floor((coverage - 1) / 2); // Center offset
     // const reach = data.wire[qualityIdx]; // Not used for placement, only for wiring later
 
     // 1. Identify all pixels that need coverage
