@@ -146,6 +146,9 @@ function App() {
   const panStart = useRef({ x: 0, y: 0 });
   const camStart = useRef({ x: 0, y: 0 });
 
+  // Track last grid position for stamping on release
+  const lastGridPos = useRef<{ x: number, y: number } | null>(null);
+
   const onInteractStart = (e: React.MouseEvent | React.TouchEvent, x: number, y: number) => {
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
@@ -158,10 +161,10 @@ function App() {
       return;
     }
 
+    lastGridPos.current = { x, y };
+
     if (stampMode && stampBuffer) {
-      // wait for up? or click? 
-      // Original: Click to paint.
-      commitStamp(x, y);
+      // Don't commit yet. Just wait for move/end.
       return;
     }
 
@@ -206,9 +209,10 @@ function App() {
       return;
     }
 
+    lastGridPos.current = { x, y };
+
     if (stampMode) return; // Ghost is handled by Canvas render loop
 
-    // If mouse is down (buttons=1 for left click)
     // If mouse is down (buttons=1 for left click)
     // const buttons = 'buttons' in e ? e.buttons : 1;
     // Actually Pointer Events are better but we use Mouse/Touch.
@@ -226,6 +230,13 @@ function App() {
       setIsPanning(false);
       return;
     }
+
+    if (stampMode && stampBuffer && lastGridPos.current) {
+      commitStamp(lastGridPos.current.x, lastGridPos.current.y);
+      lastGridPos.current = null;
+      return;
+    }
+
     if (changedRef.current) {
       saveHistory();
       changedRef.current = false;
