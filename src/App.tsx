@@ -201,7 +201,7 @@ function App() {
     }, smartPlacement ? 500 : 50); // Debounce more for smart mode
 
     return () => clearTimeout(timer);
-  }, [autoPole, smartPlacement, poleType, qualityIdx, tick]); // Tick triggers re-calc on draw
+  }, [autoPole, smartPlacement, poleType, qualityIdx, tick, historyIndex]); // Tick/History triggers re-calc on draw
 
   const copyBlueprint = () => {
     const { bpString, status } = generateBlueprintData(gridRef.current, GRID_W, GRID_H, poleType, qualityIdx, autoPole, smartPlacement);
