@@ -500,6 +500,7 @@ function App() {
               poleType={activePolesState.type}
               qualityIdx={activePolesState.qualityIdx}
               onHover={(x, y) => setCoords({ x, y })}
+              tool={tool}
             />
 
             <div className="h-6 md:h-8 bg-gray-900 border-t border-gray-800 flex items-center px-4 md:px-6 text-[10px] text-gray-500 justify-between shrink-0 font-mono">

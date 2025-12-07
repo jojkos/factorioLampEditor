@@ -29,6 +29,8 @@ interface CanvasProps {
 
     // Coordinates display
     onHover: (x: number, y: number) => void;
+
+    tool: string;
 }
 
 export const Canvas: React.FC<CanvasProps> = ({
@@ -36,7 +38,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     onInteractStart, onInteractMove, onInteractEnd,
     stampMode, stampBuffer, stampScale, onStampScale,
     autoPole, activePoles, poleType, qualityIdx,
-    onHover
+    onHover, tool
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -293,10 +295,18 @@ export const Canvas: React.FC<CanvasProps> = ({
         onInteractStart(e, Math.floor(world.x / PIXEL_SIZE), Math.floor(world.y / PIXEL_SIZE));
     };
 
+    const getCursor = () => {
+        if (stampMode) return 'cursor-none'; // We render a custom ghost
+        if (tool === 'pan') return 'cursor-grab'; // Or move
+        if (tool === 'eye') return 'cursor-pointer'; // Eye dropper
+        if (tool === 'fill') return 'cursor-cell'; // Bucket? crosshair is fine too
+        return 'cursor-crosshair';
+    };
+
     return (
         <div
             ref={containerRef}
-            className="relative flex-1 bg-[#0d0e12] touch-none w-full h-full cursor-crosshair overflow-hidden"
+            className={`relative flex-1 bg-[#0d0e12] touch-none w-full h-full overflow-hidden ${getCursor()}`}
         >
             <canvas
                 ref={canvasRef}

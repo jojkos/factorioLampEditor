@@ -459,7 +459,9 @@ export function generateBlueprintData(
             const entity: BlueprintEntity = {
                 entity_number: p.entity_number!,
                 name: poleType,
-                position: { x: p.x - minX, y: p.y - minY },
+                // Factorio entities are centered. p.x is Top-Left integer.
+                // Center = TopLeft + Size/2
+                position: { x: (p.x - minX) + data.size / 2, y: (p.y - minY) + data.size / 2 },
                 neighbours: neighbourIds
             };
             if (qualityIdx > 0) {
@@ -487,7 +489,8 @@ export function generateBlueprintData(
                 entities.push({
                     entity_number: entityId++,
                     name: "small-lamp",
-                    position: { x: x - minX, y: y - minY },
+                    // Lamp is 1x1. Center is x + 0.5
+                    position: { x: (x - minX) + 0.5, y: (y - minY) + 0.5 },
                     color: { r: rgb.r / 255, g: rgb.g / 255, b: rgb.b / 255, a: 1 },
                     always_on: true,
                 });
