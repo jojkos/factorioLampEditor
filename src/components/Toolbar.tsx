@@ -18,6 +18,8 @@ interface ToolbarProps {
     // Pole Props
     autoPole: boolean;
     setAutoPole: (v: boolean) => void;
+    smartPlacement: boolean;
+    setSmartPlacement: (v: boolean) => void;
     poleType: string;
     setPoleType: (v: string) => void;
     qualityIdx: number;
@@ -31,6 +33,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     onUndo, onRedo,
     renderTextStamp, onImageUpload,
     autoPole, setAutoPole,
+    smartPlacement, setSmartPlacement,
     poleType, setPoleType,
     qualityIdx, setQualityIdx,
     isDragging = false
@@ -120,8 +123,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
                 <div className="mb-2">
                     <label className={`flex items-center justify-center w-full h-10 px-4 transition border rounded cursor-pointer group gap-2 ${isDragging
-                            ? 'bg-blue-600 border-blue-400 animate-pulse ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-800'
-                            : 'bg-gray-700 hover:bg-gray-600 border-gray-600'
+                        ? 'bg-blue-600 border-blue-400 animate-pulse ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-800'
+                        : 'bg-gray-700 hover:bg-gray-600 border-gray-600'
                         }`}>
                         <i className="fa-solid fa-file-import text-gray-200 group-hover:text-white transition-colors"></i>
                         <span className="text-xs font-bold text-gray-200 group-hover:text-white transition-colors uppercase tracking-wider">
@@ -203,11 +206,42 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                             </div>
                         )}
 
-                        {/* Click outside listener could be added in a useEffect here or in Layout */}
+                        {/* Click outside listener */}
                         {showQualityDropdown && (
                             <div className="fixed inset-0 z-[-1]" onClick={() => setShowQualityDropdown(false)}></div>
                         )}
                     </div>
+
+                    {/* Mode Toggle */}
+
+                    <div className="flex bg-gray-900 p-1 rounded-lg border border-gray-600 relative items-center">
+                        <div className="flex-1 flex gap-1">
+                            <button
+                                className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded transition-colors ${!smartPlacement ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200'}`}
+                                onClick={() => setSmartPlacement(false)}
+                            >
+                                Grid
+                            </button>
+                            <button
+                                className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded transition-colors ${smartPlacement ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200'}`}
+                                onClick={() => setSmartPlacement(true)}
+                            >
+                                Smart
+                            </button>
+                        </div>
+
+                        {/* Info Icon */}
+                        <div className="group relative ml-2 mr-1">
+                            <i className="fa-solid fa-circle-question text-gray-500 hover:text-gray-300 cursor-help"></i>
+                            {/* Tooltip */}
+                            <div className="hidden group-hover:block absolute bottom-full right-0 mb-2 w-48 bg-gray-900 text-gray-200 text-xs p-2 rounded border border-gray-600 shadow-xl z-50">
+                                <p className="font-bold text-yellow-500 mb-1">Experimental Feature</p>
+                                <p>Optimizes pole placement to avoid covering lamps.</p>
+                                <p className="mt-1 text-gray-400 italic">May be slow on large canvases.</p>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
 

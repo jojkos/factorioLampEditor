@@ -46,7 +46,7 @@ export function encodeBlueprint(blueprintJson: BlueprintJson): string | null {
     }
 }
 
-interface ActivePole {
+export interface ActivePole {
     x: number;
     y: number;
     id: number; // temp index
@@ -195,13 +195,189 @@ export function calculateActivePoles(
     return activePoles;
 }
 
+export function calculateSmartPoles(
+    type: string,
+    qualityIdx: number,
+    boundsMinX: number,
+    boundsMinY: number,
+    boundsMaxX: number,
+    boundsMaxY: number,
+    gridData: GridData,
+    gridW: number,
+    gridH: number
+): ActivePole[] {
+    const data = POLE_DATA[type];
+    const coverage = data.supply[qualityIdx]; // Width/Height of supply area
+    const offset = Math.floor((coverage - 1) / 2); // Center offset
+    // const reach = data.wire[qualityIdx]; // Not used for placement, only for wiring later
+
+    // 1. Identify all pixels that need coverage
+    // detailedPixels: {x, y, covered}
+    const pixels: { x: number, y: number, covered: boolean }[] = [];
+    const pixelSet = new Set<string>();
+
+    for (let y = boundsMinY; y <= boundsMaxY; y++) {
+        for (let x = boundsMinX; x <= boundsMaxX; x++) {
+            if (gridData[y][x]) {
+                pixels.push({ x, y, covered: false });
+                pixelSet.add(`${x},${y}`);
+            }
+        }
+    }
+
+    if (pixels.length === 0) return [];
+
+    const activePoles: ActivePole[] = [];
+    let uncoveredCount = pixels.length;
+
+    // 2. Generate Candidate Positions
+    // A candidate is valid if it covers at least one pixel.
+    // Optimization: Only consider positions that are "centered" relative to some pixel?
+    // Or just iterate every possible top-left position that could cover a pixel?
+    // A pole at (px, py) covers [px, px+size-1] x [py, py+size-1] physical footprint
+    // Supply area is larger: [px + size/2 - cov/2, ...]
+    // Let's us Supply Area Top-Left (sx, sy) as the main coordinate for simplicity iterate.
+    // Supply Rect: [sx, sy, coverage, coverage]
+    // The pole entity is at:
+    // PoleX = sx + coverage/2 - size/2
+    // PoleY = sy + coverage/2 - size/2
+    // We want Integer coords.
+    // Let's iterate candidates based on the grid of the bounding box extended by coverage.
+
+    // Better selection of candidates:
+    // For every pixel `p`, a pole covers it if the pole's supply rect contains `p`.
+    // Supply Rect (sx, sy) contains (px, py) iff sx <= px < sx + coverage AND sy <= py < sy + coverage
+    // So sx in (px - coverage + 1, px)
+    // We can collect all "useful" candidate Supply Rect Top-Lefts.
+
+    const candidateScores = new Map<string, { sx: number, sy: number, cost: number, covers: number[] }>();
+
+    // Helper to get ID
+    const cId = (sx: number, sy: number) => `${sx},${sy}`;
+
+    // For every pixel, generate potential candidates that cover it
+    for (let i = 0; i < pixels.length; i++) {
+        const p = pixels[i];
+        // Possible supply top-lefts that cover this pixel
+        const startSX = p.x - coverage + 1;
+        const startSY = p.y - coverage + 1;
+        // We iterate all valid top-lefts for supply area
+        for (let sy = startSY; sy <= p.y; sy++) {
+            for (let sx = startSX; sx <= p.x; sx++) {
+                // Bounds check (optional, but good to keep poles somewhat in bounds)
+                // if (sx < 0 || sy < 0 || sx >= gridW || sy >= gridH) continue; 
+                // Actually supply area can be anywhere, but pole entity must be essentially "valid"
+
+                const id = cId(sx, sy);
+                if (!candidateScores.has(id)) {
+                    // Calculate Cost
+                    // Real Pole Position
+                    // supply center = sx + coverage/2
+                    // pole top-left = supply center - size/2
+                    const realX = Math.round(sx + coverage / 2 - data.size / 2);
+                    const realY = Math.round(sy + coverage / 2 - data.size / 2);
+
+                    let cost = 1.0;
+                    // Check overlap with image (Soft Constraint)
+                    let overlaps = false;
+                    for (let py = 0; py < data.size; py++) {
+                        for (let px = 0; px < data.size; px++) {
+                            const checkX = realX + px;
+                            const checkY = realY + py;
+                            if (checkX >= 0 && checkX < gridW && checkY >= 0 && checkY < gridH) {
+                                if (gridData[checkY][checkX]) {
+                                    overlaps = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (overlaps) break;
+                    }
+                    if (overlaps) cost += 1000; // High penalty
+
+                    candidateScores.set(id, { sx, sy, cost, covers: [] });
+                }
+                candidateScores.get(id)!.covers.push(i);
+            }
+        }
+    }
+
+    // 3. Greedy Loop
+    const usedCandidates = new Set<string>();
+
+    while (uncoveredCount > 0) {
+        let bestCandidate = null;
+        let maxScore = -1;
+
+        // Evaluate all candidates
+        // Optimization: We could maintain a heap or priority queue, but simple iteration is easier to implement first.
+        // JS Map iteration is efficient enough for typical canvas size?
+        // number of candidates ~ pixels * coverage^2. 
+        // 512x512 with cov 7 = 250k * 49 = 12M checks? A bit heavy for single frame.
+        // But active pixels are sparse usually.
+        // Let's optimization: We only iterate candidates that cover CURRENTLY UNCOVERED pixels.
+
+        // Actually, we can just iterate the map.
+        // Score = NewCovered / Cost.
+
+        for (const [id, cand] of candidateScores) {
+            if (usedCandidates.has(id)) continue;
+
+            let newlyCovered = 0;
+            for (const pIdx of cand.covers) {
+                if (!pixels[pIdx].covered) newlyCovered++;
+            }
+
+            if (newlyCovered === 0) {
+                // Optimization: Remove useless candidate?
+                // candidateScores.delete(id); 
+                continue;
+            }
+
+            const score = newlyCovered / cand.cost;
+            if (score > maxScore) {
+                maxScore = score;
+                bestCandidate = cand;
+            }
+        }
+
+        if (!bestCandidate) break; // Should not happen if uncovered > 0
+
+        // Select best
+        usedCandidates.add(cId(bestCandidate.sx, bestCandidate.sy));
+
+        // Apply coverage
+        for (const pIdx of bestCandidate.covers) {
+            if (!pixels[pIdx].covered) {
+                pixels[pIdx].covered = true;
+                uncoveredCount--;
+            }
+        }
+
+        // Add to result
+        const realX = Math.round(bestCandidate.sx + coverage / 2 - data.size / 2);
+        const realY = Math.round(bestCandidate.sy + coverage / 2 - data.size / 2);
+
+        // Push Pole
+        activePoles.push({
+            x: realX,
+            y: realY,
+            id: activePoles.length,
+            group: activePoles.length
+        });
+    }
+
+    return activePoles;
+}
+
 export function generateBlueprintData(
     gridData: GridData,
     gridW: number,
     gridH: number,
     poleType: string,
     qualityIdx: number,
-    autoPole: boolean
+    autoPole: boolean,
+    smartPlacement: boolean
 ): { bpString: string | null, status: string } {
 
     const entities: BlueprintEntity[] = [];
@@ -229,7 +405,12 @@ export function generateBlueprintData(
 
     const poles: ActivePole[] = [];
     if (autoPole) {
-        const activePoles = calculateActivePoles(poleType, qualityIdx, minX, minY, maxX, maxY, gridData, gridW, gridH);
+        let activePoles: ActivePole[];
+        if (smartPlacement) {
+            activePoles = calculateSmartPoles(poleType, qualityIdx, minX, minY, maxX, maxY, gridData, gridW, gridH);
+        } else {
+            activePoles = calculateActivePoles(poleType, qualityIdx, minX, minY, maxX, maxY, gridData, gridW, gridH);
+        }
         const reach = data.wire[qualityIdx];
 
         // Calc Edges

@@ -22,7 +22,7 @@ function App() {
   // If I load a new array (Undo), I need to update the prop.
   // So:
   const gridRef = useRef<GridData>(createEmptyGrid(GRID_W, GRID_H));
-  const [, setTick] = useState(0); // Force render
+  const [tick, setTick] = useState(0); // Force render
 
   const [camera, setCamera] = useState<CameraState>(() => ({
     x: (GRID_W * PIXEL_SIZE) / 2,
@@ -126,11 +126,57 @@ function App() {
 
   // Power & Blueprint
   const [autoPole, setAutoPole] = useState(false);
+  const [smartPlacement, setSmartPlacement] = useState(false);
   const [poleType, setPoleType] = useState("medium-electric-pole");
   const [qualityIdx, setQualityIdx] = useState(0);
 
+  // Async Pole Calculation
+  const [activePoles, setActivePoles] = useState<import('./utils/blueprint').ActivePole[]>([]);
+
+  useEffect(() => {
+    if (!autoPole) {
+      setActivePoles([]);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      // We need bounds. For now, pass entire grid or calc bounds here.
+      // Let's pass the whole grid math to the utility, it handles bounds.
+      // Re-calculate bounds here to optimization?
+      let minX = GRID_W, minY = GRID_H, maxX = -1, maxY = -1;
+      const g = gridRef.current;
+      for (let y = 0; y < GRID_H; y++) {
+        for (let x = 0; x < GRID_W; x++) {
+          if (g[y][x]) {
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (y < minY) minY = y; if (y > maxY) maxY = y;
+          }
+        }
+      }
+
+      if (maxX === -1) {
+        setActivePoles([]);
+        return;
+      }
+
+      // Dynamic import to avoid circular dep issues if any? No, static is fine.
+      import('./utils/blueprint').then(({ calculateActivePoles, calculateSmartPoles }) => {
+        if (smartPlacement) {
+          const poles = calculateSmartPoles(poleType, qualityIdx, minX, minY, maxX, maxY, g, GRID_W, GRID_H);
+          setActivePoles(poles);
+        } else {
+          const poles = calculateActivePoles(poleType, qualityIdx, minX, minY, maxX, maxY, g, GRID_W, GRID_H);
+          setActivePoles(poles);
+        }
+      });
+
+    }, smartPlacement ? 500 : 50); // Debounce more for smart mode
+
+    return () => clearTimeout(timer);
+  }, [autoPole, smartPlacement, poleType, qualityIdx, tick]); // Tick triggers re-calc on draw
+
   const copyBlueprint = () => {
-    const { bpString, status } = generateBlueprintData(gridRef.current, GRID_W, GRID_H, poleType, qualityIdx, autoPole);
+    const { bpString, status } = generateBlueprintData(gridRef.current, GRID_W, GRID_H, poleType, qualityIdx, autoPole, smartPlacement);
     if (bpString) {
       navigator.clipboard.writeText(bpString).then(() => {
         setStatusMsg("Blueprint Copied!");
@@ -246,32 +292,30 @@ function App() {
   const commitStamp = (cx: number, cy: number) => {
     if (!stampBuffer) return;
 
-    const drawW = stampMode === 'text' ? stampBuffer.w * stampScale : stampBuffer.w;
-    const drawH = stampMode === 'text' ? stampBuffer.h * stampScale : stampBuffer.h;
-    // Image scaling logic might differ, for now sticking to simple.
+    const destW = Math.floor(stampBuffer.w * stampScale);
+    const destH = Math.floor(stampBuffer.h * stampScale);
 
     // Center
-    const startX = cx - Math.floor(drawW / 2);
-    const startY = cy - Math.floor(drawH / 2);
+    const startX = cx - Math.floor(destW / 2);
+    const startY = cy - Math.floor(destH / 2);
 
     let changed = false;
 
-    const renderScale = stampMode === 'text' ? stampScale : 1;
-    // Note: original image stamp didn't scale well in logic, let's just assume 1:1 for image if processing was done.
+    // Iterate over destination pixels to ensure grid alignment and avoid float indices
+    for (let dy = 0; dy < destH; dy++) {
+      for (let dx = 0; dx < destW; dx++) {
+        // Sample from source (Nearest Neighbor)
+        const srcX = Math.floor(dx / stampScale);
+        const srcY = Math.floor(dy / stampScale);
 
-    for (let sy = 0; sy < stampBuffer.h; sy++) {
-      for (let sx = 0; sx < stampBuffer.w; sx++) {
-        const col = stampBuffer.data[sy][sx];
-        if (col) {
-          // For text, scale pixels
-          for (let dy = 0; dy < renderScale; dy++) {
-            for (let dx = 0; dx < renderScale; dx++) {
-              const gx = startX + sx * renderScale + dx;
-              const gy = startY + sy * renderScale + dy;
-              if (gx >= 0 && gx < GRID_W && gy >= 0 && gy < GRID_H) {
-                gridRef.current[gy][gx] = col;
-                changed = true;
-              }
+        if (srcX >= 0 && srcX < stampBuffer.w && srcY >= 0 && srcY < stampBuffer.h) {
+          const col = stampBuffer.data[srcY][srcX];
+          if (col) {
+            const gx = startX + dx;
+            const gy = startY + dy;
+            if (gx >= 0 && gx < GRID_W && gy >= 0 && gy < GRID_H) {
+              gridRef.current[gy][gx] = col;
+              changed = true;
             }
           }
         }
@@ -287,13 +331,28 @@ function App() {
     setStampBuffer(null);
   };
 
+  const handleStampScale = useCallback((delta: number) => {
+    // Delta is +1 or -1
+    setStampScale(s => {
+      if (stampMode === 'text') {
+        // Text: Integer steps, min 1
+        return Math.max(1, s + delta);
+      } else {
+        // Image: Finer steps, allow < 1
+        // Use 0.1 increments
+        const newS = s + (delta * 0.1);
+        return Math.max(0.1, parseFloat(newS.toFixed(1)));
+      }
+    });
+  }, [stampMode]);
+
   const handleZoomKey = useCallback((e: KeyboardEvent) => {
     if (stampMode) {
       if (e.key === "+" || e.key === "=") {
-        setStampScale(s => s + 1); // Only text uses integer scale efficiently? Original used float for images.
+        handleStampScale(1);
       }
       if (e.key === "-" || e.key === "_") {
-        setStampScale(s => Math.max(1, s - 1));
+        handleStampScale(-1);
       }
       if (e.key === "Escape") {
         setStampMode(null);
@@ -408,7 +467,9 @@ function App() {
               stampMode={stampMode}
               stampBuffer={stampBuffer}
               stampScale={stampScale}
+              onStampScale={handleStampScale}
               autoPole={autoPole}
+              activePoles={activePoles}
               poleType={poleType}
               qualityIdx={qualityIdx}
               onHover={(x, y) => setCoords({ x, y })}
@@ -427,6 +488,7 @@ function App() {
             renderTextStamp={handleTextStamp}
             onImageUpload={handleImageUpload}
             autoPole={autoPole} setAutoPole={setAutoPole}
+            smartPlacement={smartPlacement} setSmartPlacement={setSmartPlacement}
             poleType={poleType} setPoleType={setPoleType}
             qualityIdx={qualityIdx} setQualityIdx={setQualityIdx}
             isDragging={isDragging}

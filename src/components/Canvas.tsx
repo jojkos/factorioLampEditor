@@ -4,7 +4,7 @@ import { getWorldCoords } from '../utils/geometry';
 import type { GridData } from '../utils/grid';
 import { PIXEL_SIZE, GRID_W, GRID_H, POLE_DATA } from '../constants';
 import type { StampBuffer } from '../utils/stamp';
-import { calculateActivePoles } from '../utils/blueprint';
+import type { ActivePole } from '../utils/blueprint';
 
 interface CanvasProps {
     gridData: GridData;
@@ -20,8 +20,10 @@ interface CanvasProps {
     stampMode: 'text' | 'image' | null;
     stampBuffer: StampBuffer | null;
     stampScale: number;
+    onStampScale: (delta: number) => void;
 
     autoPole: boolean;
+    activePoles?: ActivePole[];
     poleType: string;
     qualityIdx: number;
 
@@ -32,8 +34,8 @@ interface CanvasProps {
 export const Canvas: React.FC<CanvasProps> = ({
     gridData, camera, setCamera,
     onInteractStart, onInteractMove, onInteractEnd,
-    stampMode, stampBuffer, stampScale,
-    autoPole, poleType, qualityIdx,
+    stampMode, stampBuffer, stampScale, onStampScale,
+    autoPole, activePoles, poleType, qualityIdx,
     onHover
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -143,34 +145,46 @@ export const Canvas: React.FC<CanvasProps> = ({
             const cx = Math.floor(worldPos.x / PIXEL_SIZE);
             const cy = Math.floor(worldPos.y / PIXEL_SIZE);
 
-            let renderScale = 1;
-            let drawW = stampBuffer.w;
-            let drawH = stampBuffer.h;
+            let renderScale = stampScale;
+            let drawW = stampBuffer.w * renderScale;
+            let drawH = stampBuffer.h * renderScale;
 
-            if (stampMode === 'text') {
-                renderScale = stampScale;
-                drawW = stampBuffer.w * renderScale;
-                drawH = stampBuffer.h * renderScale;
-            }
+            // if (stampMode === 'text') {
+            //     renderScale = stampScale;
+            //     drawW = stampBuffer.w * renderScale;
+            //     drawH = stampBuffer.h * renderScale;
+            // }
             // For image, we assume buffer is already scaled? 
             // Logic in original: processImageFile sets stampScale=1. 
             // Resizing image stamp: `refreshStampBuffer` uses `stampScale` to resize the canvas source.
 
-            const startX = cx - Math.floor(drawW / 2);
-            const startY = cy - Math.floor(drawH / 2);
+            const destW = Math.floor(stampBuffer.w * stampScale);
+            const destH = Math.floor(stampBuffer.h * stampScale);
+
+            const startX = cx - Math.floor(destW / 2);
+            const startY = cy - Math.floor(destH / 2);
 
             ctx.globalAlpha = 0.5;
-            for (let sy = 0; sy < stampBuffer.h; sy++) {
-                for (let sx = 0; sx < stampBuffer.w; sx++) {
-                    const col = stampBuffer.data[sy][sx];
-                    if (col) {
-                        const originX = startX + (sx * renderScale);
-                        const originY = startY + (sy * renderScale);
-                        if (originX > maxTileX || originX + renderScale < minTileX) continue;
-                        if (originY > maxTileY || originY + renderScale < minTileY) continue;
 
-                        ctx.fillStyle = col;
-                        ctx.fillRect(originX * PIXEL_SIZE, originY * PIXEL_SIZE, PIXEL_SIZE * renderScale, PIXEL_SIZE * renderScale);
+            // Iterate dest pixels to match commit logic
+            for (let dy = 0; dy < destH; dy++) {
+                for (let dx = 0; dx < destW; dx++) {
+                    const srcX = Math.floor(dx / stampScale);
+                    const srcY = Math.floor(dy / stampScale);
+
+                    if (srcX >= 0 && srcX < stampBuffer.w && srcY >= 0 && srcY < stampBuffer.h) {
+                        const col = stampBuffer.data[srcY][srcX];
+                        if (col) {
+                            const gx = startX + dx;
+                            const gy = startY + dy;
+
+                            // Culling check for render perf
+                            if (gx > maxTileX || gx < minTileX || gy > maxTileY || gy < minTileY) continue;
+
+                            ctx.fillStyle = col;
+                            // Draw 1x1 grid cell
+                            ctx.fillRect(gx * PIXEL_SIZE, gy * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+                        }
                     }
                 }
             }
@@ -181,15 +195,23 @@ export const Canvas: React.FC<CanvasProps> = ({
         }
 
         // 7. Auto Poles
-        if (autoPole) {
+        if (autoPole && activePoles) {
             const data = POLE_DATA[poleType];
-            const poles = calculateActivePoles(poleType, qualityIdx, minTileX, minTileY, maxTileX, maxTileY, gridData, GRID_W, GRID_H);
             const size = data.size;
             const coverage = data.supply[qualityIdx];
 
-            poles.forEach(p => {
+            activePoles.forEach(p => {
+                // Optimization: Cull poles not in view?
+                // For now just render.
                 const x = p.x;
                 const y = p.y;
+
+                // Culling
+                if (x + size < minTileX || x > maxTileX || y + size < minTileY || y > maxTileY) {
+                    // Mostly out of view, check supply area for dashed line?
+                    // Just simple culling.
+                }
+
                 ctx.strokeStyle = "#3b82f6";
                 ctx.lineWidth = 2 / camera.zoom;
                 ctx.strokeRect(x * PIXEL_SIZE + 1, y * PIXEL_SIZE + 1, size * PIXEL_SIZE - 2, size * PIXEL_SIZE - 2);
@@ -205,7 +227,7 @@ export const Canvas: React.FC<CanvasProps> = ({
 
         ctx.restore();
 
-    }, [gridData, camera, stampMode, stampBuffer, stampScale, autoPole, poleType, qualityIdx]);
+    }, [gridData, camera, stampMode, stampBuffer, stampScale, autoPole, activePoles, poleType, qualityIdx]);
 
     // Animation Loop
     useEffect(() => {
@@ -223,31 +245,35 @@ export const Canvas: React.FC<CanvasProps> = ({
     const lastMousePos = useRef<{ x: number, y: number } | null>(null);
 
     const handleWheel = (e: React.WheelEvent) => {
-        if (stampMode) return; // Parent handles stamp resize? Or we handle it?
-        // Let's stop propagation if we handle zoom
-        if (!stampMode) {
+        if (stampMode) {
+            e.preventDefault();
             e.stopPropagation();
-            // Zoom logic
             const delta = e.deltaY < 0 ? 1 : -1;
-            const zoomIntensity = 0.1;
-            const newZoom = Math.min(Math.max(MIN_ZOOM, camera.zoom + (delta * zoomIntensity * camera.zoom)), MAX_ZOOM);
+            onStampScale(delta);
+            return;
+        }
 
-            if (newZoom !== camera.zoom) {
-                const rect = canvasRef.current!.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
-                const w = canvasRef.current!.width;
-                const h = canvasRef.current!.height;
+        e.stopPropagation();
+        // Zoom logic
+        const delta = e.deltaY < 0 ? 1 : -1;
+        const zoomIntensity = 0.1;
+        const newZoom = Math.min(Math.max(MIN_ZOOM, camera.zoom + (delta * zoomIntensity * camera.zoom)), MAX_ZOOM);
 
-                // World before zoom
-                const worldBeforeX = (mouseX - w / 2) / camera.zoom + camera.x;
-                const worldBeforeY = (mouseY - h / 2) / camera.zoom + camera.y;
+        if (newZoom !== camera.zoom) {
+            const rect = canvasRef.current!.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const w = canvasRef.current!.width;
+            const h = canvasRef.current!.height;
 
-                const newX = worldBeforeX - (mouseX - w / 2) / newZoom;
-                const newY = worldBeforeY - (mouseY - h / 2) / newZoom;
+            // World before zoom
+            const worldBeforeX = (mouseX - w / 2) / camera.zoom + camera.x;
+            const worldBeforeY = (mouseY - h / 2) / camera.zoom + camera.y;
 
-                setCamera({ x: newX, y: newY, zoom: newZoom });
-            }
+            const newX = worldBeforeX - (mouseX - w / 2) / newZoom;
+            const newY = worldBeforeY - (mouseY - h / 2) / newZoom;
+
+            setCamera({ x: newX, y: newY, zoom: newZoom });
         }
     };
 
