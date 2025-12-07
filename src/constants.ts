@@ -5,11 +5,11 @@ export const GRID_H = 513;
 export const QUALITY_NAMES = ["normal", "uncommon", "rare", "epic", "legendary"];
 export const QUALITY_COLORS = ["#9ca3af", "#22c55e", "#3b82f6", "#a855f7", "#f97316"]; // Gray, Green, Blue, Purple, Orange
 export const QUALITY_IMAGES = [
-    "public/15px-Quality_normal.png",
-    "public/15px-Quality_uncommon.png",
-    "public/15px-Quality_rare.png",
-    "public/15px-Quality_epic.png",
-    "public/15px-Quality_legendary.png"
+    "15px-Quality_normal.png",
+    "15px-Quality_uncommon.png",
+    "15px-Quality_rare.png",
+    "15px-Quality_epic.png",
+    "15px-Quality_legendary.png"
 ];
 
 export interface PoleData {
