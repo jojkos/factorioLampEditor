@@ -3,7 +3,7 @@ import { Header } from './components/Header';
 import { Toolbar, type ToolType } from './components/Toolbar';
 import { Canvas } from './components/Canvas';
 import { HelpModal } from './components/HelpModal';
-import { GRID_W, GRID_H, PIXEL_SIZE } from './constants';
+import { GRID_W, GRID_H, PIXEL_SIZE, TEXT_SCALE_MIN, IMAGE_SCALE_MIN, IMAGE_SCALE_STEP } from './constants';
 import { createEmptyGrid, cloneGrid, floodFill, type GridData } from './utils/grid';
 import type { CameraState } from './utils/geometry';
 import { createTextStamp, processImageStamp, type StampBuffer } from './utils/stamp';
@@ -78,6 +78,7 @@ function App() {
   // Stamps
   const [stampMode, setStampMode] = useState<'text' | 'image' | null>(null);
   const [stampBuffer, setStampBuffer] = useState<StampBuffer | null>(null);
+  const [stampSource, setStampSource] = useState<{ image: HTMLImageElement, baseW: number, baseH: number } | null>(null);
   const [stampScale, setStampScale] = useState(1);
 
   const handleTextStamp = async (text: string) => {
@@ -92,9 +93,10 @@ function App() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       try {
-        const { buffer } = await processImageStamp(e.target.files[0]);
+        const { buffer, image, baseSize } = await processImageStamp(e.target.files[0]);
         setStampBuffer(buffer);
         setStampMode('image');
+        setStampSource({ image, baseW: baseSize.w, baseH: baseSize.h });
         setStampScale(1);
       } catch (err) {
         console.error(err);
@@ -102,6 +104,18 @@ function App() {
       e.target.value = "";
     }
   };
+
+  // Regenerate buffer on scale change (for Images)
+  useEffect(() => {
+    if (stampMode === 'image' && stampSource) {
+      import('./utils/stamp').then(({ generateImageBuffer }) => {
+        const w = Math.max(1, Math.floor(stampSource.baseW * stampScale));
+        const h = Math.max(1, Math.floor(stampSource.baseH * stampScale));
+        const buffer = generateImageBuffer(stampSource.image, w, h);
+        setStampBuffer(buffer);
+      });
+    }
+  }, [stampScale, stampMode, stampSource]);
 
   // Paste support
   useEffect(() => {
@@ -112,9 +126,10 @@ function App() {
         if (items[i].type.indexOf('image') !== -1) {
           const blob = items[i].getAsFile();
           if (blob) {
-            const { buffer } = await processImageStamp(blob);
+            const { buffer, image, baseSize } = await processImageStamp(blob);
             setStampBuffer(buffer);
             setStampMode('image');
+            setStampSource({ image, baseW: baseSize.w, baseH: baseSize.h });
             setStampScale(1);
           }
         }
@@ -132,9 +147,10 @@ function App() {
 
   // Async Pole Calculation
   // We store the poles AND the type they were calculated for, to avoid rendering mismatch during debounced updates.
-  const [activePolesState, setActivePolesState] = useState<{ poles: import('./utils/blueprint').ActivePole[], type: string }>({
+  const [activePolesState, setActivePolesState] = useState<{ poles: import('./utils/blueprint').ActivePole[], type: string, qualityIdx: number }>({
     poles: [],
-    type: "medium-electric-pole"
+    type: "medium-electric-pole",
+    qualityIdx: 0
   });
 
   useEffect(() => {
@@ -296,8 +312,12 @@ function App() {
   const commitStamp = (cx: number, cy: number) => {
     if (!stampBuffer) return;
 
-    const destW = Math.floor(stampBuffer.w * stampScale);
-    const destH = Math.floor(stampBuffer.h * stampScale);
+    // Check mode
+    const isText = stampMode === 'text';
+
+    // Image buffer is already scaled (resampled). Text buffer is 1x and needs scaling.
+    const destW = isText ? Math.floor(stampBuffer.w * stampScale) : stampBuffer.w;
+    const destH = isText ? Math.floor(stampBuffer.h * stampScale) : stampBuffer.h;
 
     // Center
     const startX = cx - Math.floor(destW / 2);
@@ -305,12 +325,14 @@ function App() {
 
     let changed = false;
 
-    // Iterate over destination pixels to ensure grid alignment and avoid float indices
+    // Iterate over destination pixels
     for (let dy = 0; dy < destH; dy++) {
       for (let dx = 0; dx < destW; dx++) {
-        // Sample from source (Nearest Neighbor)
-        const srcX = Math.floor(dx / stampScale);
-        const srcY = Math.floor(dy / stampScale);
+        // Source coords
+        // If Text: NN scaling (src = d / scale)
+        // If Image: 1:1 mapping (src = d)
+        const srcX = isText ? Math.floor(dx / stampScale) : dx;
+        const srcY = isText ? Math.floor(dy / stampScale) : dy;
 
         if (srcX >= 0 && srcX < stampBuffer.w && srcY >= 0 && srcY < stampBuffer.h) {
           const col = stampBuffer.data[srcY][srcX];
@@ -340,12 +362,12 @@ function App() {
     setStampScale(s => {
       if (stampMode === 'text') {
         // Text: Integer steps, min 1
-        return Math.max(1, s + delta);
+        return Math.max(TEXT_SCALE_MIN, s + delta);
       } else {
         // Image: Finer steps, allow < 1
         // Use 0.1 increments
-        const newS = s + (delta * 0.1);
-        return Math.max(0.1, parseFloat(newS.toFixed(1)));
+        const newS = s + (delta * IMAGE_SCALE_STEP);
+        return Math.max(IMAGE_SCALE_MIN, parseFloat(newS.toFixed(1)));
       }
     });
   }, [stampMode]);
@@ -420,9 +442,10 @@ function App() {
       const file = e.dataTransfer.files[0];
       if (file.type.startsWith('image/')) {
         try {
-          const { buffer } = await processImageStamp(file);
+          const { buffer, image, baseSize } = await processImageStamp(file);
           setStampBuffer(buffer);
           setStampMode('image');
+          setStampSource({ image, baseW: baseSize.w, baseH: baseSize.h });
           setStampScale(1);
         } catch (err) {
           console.error(err);

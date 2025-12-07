@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import type { CameraState } from '../utils/geometry';
 import { getWorldCoords } from '../utils/geometry';
 import type { GridData } from '../utils/grid';
-import { PIXEL_SIZE, GRID_W, GRID_H, POLE_DATA } from '../constants';
+import { PIXEL_SIZE, GRID_W, GRID_H, POLE_DATA, MIN_ZOOM, MAX_ZOOM } from '../constants';
 import type { StampBuffer } from '../utils/stamp';
 import type { ActivePole } from '../utils/blueprint';
 
@@ -42,8 +42,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     const containerRef = useRef<HTMLDivElement>(null);
     // const requestRef = useRef<number>();
 
-    const MIN_ZOOM = 0.1;
-    const MAX_ZOOM = 3.0;
+
 
     // Render Logic
     const render = useCallback(() => {
@@ -145,21 +144,15 @@ export const Canvas: React.FC<CanvasProps> = ({
             const cx = Math.floor(worldPos.x / PIXEL_SIZE);
             const cy = Math.floor(worldPos.y / PIXEL_SIZE);
 
-            let renderScale = stampScale;
-            let drawW = stampBuffer.w * renderScale;
-            let drawH = stampBuffer.h * renderScale;
+            // Determine render scale: Text uses dynamic scaling during render,
+            // while Images are pre-scaled in the buffer (so render 1:1).
+            const renderScale = stampMode === 'text' ? stampScale : 1;
 
-            // if (stampMode === 'text') {
-            //     renderScale = stampScale;
-            //     drawW = stampBuffer.w * renderScale;
-            //     drawH = stampBuffer.h * renderScale;
-            // }
-            // For image, we assume buffer is already scaled? 
-            // Logic in original: processImageFile sets stampScale=1. 
-            // Resizing image stamp: `refreshStampBuffer` uses `stampScale` to resize the canvas source.
+            const destW = Math.floor(stampBuffer.w * renderScale);
+            const destH = Math.floor(stampBuffer.h * renderScale);
 
-            const destW = Math.floor(stampBuffer.w * stampScale);
-            const destH = Math.floor(stampBuffer.h * stampScale);
+            const drawW = destW;
+            const drawH = destH;
 
             const startX = cx - Math.floor(destW / 2);
             const startY = cy - Math.floor(destH / 2);
@@ -169,8 +162,8 @@ export const Canvas: React.FC<CanvasProps> = ({
             // Iterate dest pixels to match commit logic
             for (let dy = 0; dy < destH; dy++) {
                 for (let dx = 0; dx < destW; dx++) {
-                    const srcX = Math.floor(dx / stampScale);
-                    const srcY = Math.floor(dy / stampScale);
+                    const srcX = Math.floor(dx / renderScale);
+                    const srcY = Math.floor(dy / renderScale);
 
                     if (srcX >= 0 && srcX < stampBuffer.w && srcY >= 0 && srcY < stampBuffer.h) {
                         const col = stampBuffer.data[srcY][srcX];

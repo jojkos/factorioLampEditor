@@ -34,14 +34,22 @@ The **Factorio Lamp Editor** is a lightweight, web-based tool designed to create
 
 The app supports "stamping" patterns onto the grid.
 
-- **Text Stamp**:
-  - Uses a custom 5x5 internal pixel font (`FACTORIO_FONT`).
-  - Supports `A-Z`, `a-z`, `0-9`, and basic symbols.
-  - **Scaling**: Text can be scaled up (using `+`/`-` keys).
-- **Image Stamp**:
-  - Imports user uploaded images or **Pasted (Ctrl+V)** images.
-  - Automatically resizes to fit reasonable bounds (~30px max dimension initially).
-  - Converts image pixels to closest hex color.
+- **Unified Logic**:
+  - **Aiming**: Move mouse to preview stamp. "Ghost" follows cursor.
+  - **Commit**: Click to paint the stamp onto the grid.
+  - **Scaling**: Both Text and Image stamps support scaling using `+`/`-` keys or Mouse Wheel.
+    - **Text**: Integer scaling (1x, 2x, etc.).
+    - **Image**: Fine scaling (0.1 steps).
+
+- **Stamp Types**:
+  - **Text Stamp**:
+    - Uses a custom 5x5 internal pixel font (`FACTORIO_FONT`).
+    - Supports `A-Z`, `a-z`, `0-9`, and basic symbols.
+  - **Image Stamp**:
+    - Imports user uploaded images or **Pasted (Ctrl+V)** images.
+    - Automatically resizes to fit reasonable bounds (~30px max dimension initially) on import.
+    - Converts image pixels to closest hex color.
+
 - **Interaction Model**:
   - **Priority**: Stamp Mode takes precedence over other tools (like Pan).
   - **Phase 1 (Aiming)**: Move mouse to preview stamp.

@@ -2,6 +2,13 @@ export const PIXEL_SIZE = 20;
 export const GRID_W = 513;
 export const GRID_H = 513;
 
+export const MIN_ZOOM = 0.1;
+export const MAX_ZOOM = 3.0;
+
+export const TEXT_SCALE_MIN = 1;
+export const IMAGE_SCALE_MIN = 0.1;
+export const IMAGE_SCALE_STEP = 0.1;
+
 export const QUALITY_NAMES = ["normal", "uncommon", "rare", "epic", "legendary"];
 export const QUALITY_COLORS = ["#9ca3af", "#22c55e", "#3b82f6", "#a855f7", "#f97316"]; // Gray, Green, Blue, Purple, Orange
 export const QUALITY_IMAGES = [
