@@ -25,6 +25,8 @@ interface ToolbarProps {
     qualityIdx: number;
     setQualityIdx: (v: number) => void;
     isDragging?: boolean;
+    lampCount: number;
+    poleCount: number;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -36,7 +38,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     smartPlacement, setSmartPlacement,
     poleType, setPoleType,
     qualityIdx, setQualityIdx,
-    isDragging = false
+    isDragging = false,
+    lampCount, poleCount
 }) => {
     const [showQualityDropdown, setShowQualityDropdown] = React.useState(false);
     const [textInput, setTextInput] = React.useState("");
@@ -245,6 +248,23 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 </div>
             </div>
 
-        </aside>
+            {/* Statistics */}
+            <div className="p-4 md:p-6 pb-20 md:pb-6 border-b border-gray-700">
+                <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 md:mb-4">
+                    Statistics
+                </h3>
+                <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs font-bold text-gray-300">
+                        <span>Lamps:</span>
+                        <span className="font-mono text-yellow-500">{lampCount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs font-bold text-gray-300">
+                        <span>Poles:</span>
+                        <span className="font-mono text-blue-400">{poleCount.toLocaleString()}</span>
+                    </div>
+                </div>
+            </div>
+
+        </aside >
     );
 };

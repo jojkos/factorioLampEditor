@@ -31,3 +31,13 @@ export function floodFill(grid: GridData, sx: number, sy: number, fillColor: str
     }
     return newGrid;
 }
+
+export function countLamps(grid: GridData, width: number, height: number): number {
+    let count = 0;
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            if (grid[y][x]) count++;
+        }
+    }
+    return count;
+}

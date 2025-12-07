@@ -4,7 +4,7 @@ import { Toolbar, type ToolType } from './components/Toolbar';
 import { Canvas } from './components/Canvas';
 import { HelpModal } from './components/HelpModal';
 import { GRID_W, GRID_H, PIXEL_SIZE, TEXT_SCALE_MIN, IMAGE_SCALE_MIN, IMAGE_SCALE_STEP } from './constants';
-import { createEmptyGrid, cloneGrid, floodFill, type GridData } from './utils/grid';
+import { createEmptyGrid, cloneGrid, floodFill, countLamps, type GridData } from './utils/grid';
 import type { CameraState } from './utils/geometry';
 import { createTextStamp, processImageStamp, type StampBuffer } from './utils/stamp';
 import { generateBlueprintData } from './utils/blueprint';
@@ -144,6 +144,14 @@ function App() {
   const [smartPlacement, setSmartPlacement] = useState(false);
   const [poleType, setPoleType] = useState("medium-electric-pole");
   const [qualityIdx, setQualityIdx] = useState(0);
+
+  // Stats
+  const [lampCount, setLampCount] = useState(0);
+
+  useEffect(() => {
+    // Recount lamps whenever the grid might have changed (tick/history)
+    setLampCount(countLamps(gridRef.current, GRID_W, GRID_H));
+  }, [tick, historyIndex]);
 
   // Async Pole Calculation
   // We store the poles AND the type they were calculated for, to avoid rendering mismatch during debounced updates.
@@ -520,6 +528,8 @@ function App() {
             poleType={poleType} setPoleType={setPoleType}
             qualityIdx={qualityIdx} setQualityIdx={setQualityIdx}
             isDragging={isDragging}
+            lampCount={lampCount}
+            poleCount={activePolesState.poles.length}
           />
 
         </div>
