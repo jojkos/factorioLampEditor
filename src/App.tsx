@@ -309,8 +309,62 @@ function App() {
   const [statusMsg, setStatusMsg] = useState("");
   const [showHelp, setShowHelp] = useState(false);
 
+  // Drag & Drop
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounter.current = 0;
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      if (file.type.startsWith('image/')) {
+        try {
+          const { buffer } = await processImageStamp(file);
+          setStampBuffer(buffer);
+          setStampMode('image');
+          setStampScale(1);
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    }
+  }, []);
+
   return (
-    <div className="flex flex-col h-screen bg-gray-900 text-gray-300 font-sans">
+    <div
+      className="flex flex-col h-screen bg-gray-900 text-gray-300 font-sans"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       <Header onToggleHelp={() => setShowHelp(true)} />
 
       <main className="flex-1 overflow-hidden relative w-full flex flex-col md:flex-row">
@@ -364,6 +418,7 @@ function App() {
             autoPole={autoPole} setAutoPole={setAutoPole}
             poleType={poleType} setPoleType={setPoleType}
             qualityIdx={qualityIdx} setQualityIdx={setQualityIdx}
+            isDragging={isDragging}
           />
 
         </div>

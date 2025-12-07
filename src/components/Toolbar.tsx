@@ -22,6 +22,7 @@ interface ToolbarProps {
     setPoleType: (v: string) => void;
     qualityIdx: number;
     setQualityIdx: (v: number) => void;
+    isDragging?: boolean;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -31,7 +32,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     renderTextStamp, onImageUpload,
     autoPole, setAutoPole,
     poleType, setPoleType,
-    qualityIdx, setQualityIdx
+    qualityIdx, setQualityIdx,
+    isDragging = false
 }) => {
     const [showQualityDropdown, setShowQualityDropdown] = React.useState(false);
     const [textInput, setTextInput] = React.useState("");
@@ -117,7 +119,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 </div>
 
                 <div className="mb-2">
-                    <label className="flex items-center justify-center w-full h-10 px-4 transition bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded cursor-pointer group gap-2">
+                    <label className={`flex items-center justify-center w-full h-10 px-4 transition border rounded cursor-pointer group gap-2 ${isDragging
+                            ? 'bg-blue-600 border-blue-400 animate-pulse ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-800'
+                            : 'bg-gray-700 hover:bg-gray-600 border-gray-600'
+                        }`}>
                         <i className="fa-solid fa-file-import text-gray-200 group-hover:text-white transition-colors"></i>
                         <span className="text-xs font-bold text-gray-200 group-hover:text-white transition-colors uppercase tracking-wider">
                             Import Image

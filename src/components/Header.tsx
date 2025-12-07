@@ -11,8 +11,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleHelp }) => {
                 {/* Logo Section */}
                 <div className="flex items-center gap-3">
                     <div className="bg-yellow-500/10 p-2 rounded-xl border border-yellow-500/20 shrink-0">
-                        {/* Using text emoji for now or icon */}
-                        <span className="text-yellow-500 text-xl font-bold">💡</span>
+                        <img src="bulb.png" alt="Logo" className="w-6 h-6 object-contain" />
                     </div>
                     <div>
                         <h1 className="text-lg font-extrabold text-gray-100 leading-tight tracking-tight">
