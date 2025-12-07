@@ -131,11 +131,15 @@ function App() {
   const [qualityIdx, setQualityIdx] = useState(0);
 
   // Async Pole Calculation
-  const [activePoles, setActivePoles] = useState<import('./utils/blueprint').ActivePole[]>([]);
+  // We store the poles AND the type they were calculated for, to avoid rendering mismatch during debounced updates.
+  const [activePolesState, setActivePolesState] = useState<{ poles: import('./utils/blueprint').ActivePole[], type: string }>({
+    poles: [],
+    type: "medium-electric-pole"
+  });
 
   useEffect(() => {
     if (!autoPole) {
-      setActivePoles([]);
+      setActivePolesState(prev => ({ ...prev, poles: [] }));
       return;
     }
 
@@ -155,7 +159,7 @@ function App() {
       }
 
       if (maxX === -1) {
-        setActivePoles([]);
+        setActivePolesState(prev => ({ ...prev, poles: [] }));
         return;
       }
 
@@ -163,10 +167,10 @@ function App() {
       import('./utils/blueprint').then(({ calculateActivePoles, calculateSmartPoles }) => {
         if (smartPlacement) {
           const poles = calculateSmartPoles(poleType, qualityIdx, minX, minY, maxX, maxY, g, GRID_W, GRID_H);
-          setActivePoles(poles);
+          setActivePolesState({ poles, type: poleType, qualityIdx });
         } else {
           const poles = calculateActivePoles(poleType, qualityIdx, minX, minY, maxX, maxY, g, GRID_W, GRID_H);
-          setActivePoles(poles);
+          setActivePolesState({ poles, type: poleType, qualityIdx });
         }
       });
 
@@ -469,9 +473,9 @@ function App() {
               stampScale={stampScale}
               onStampScale={handleStampScale}
               autoPole={autoPole}
-              activePoles={activePoles}
-              poleType={poleType}
-              qualityIdx={qualityIdx}
+              activePoles={activePolesState.poles}
+              poleType={activePolesState.type}
+              qualityIdx={activePolesState.qualityIdx}
               onHover={(x, y) => setCoords({ x, y })}
             />
 
