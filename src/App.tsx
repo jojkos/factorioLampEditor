@@ -8,7 +8,6 @@ import { createEmptyGrid, cloneGrid, floodFill, countLamps, type GridData } from
 import type { CameraState } from './utils/geometry';
 import { createTextStamp, processImageStamp, type StampBuffer } from './utils/stamp';
 import { generateBlueprintData } from './utils/blueprint';
-import { Analytics } from "@vercel/analytics/react"
 
 function App() {
 
